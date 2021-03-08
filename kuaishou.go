@@ -17,7 +17,7 @@ type Kuaishou interface {
 	Code2AccessToken(ctx context.Context, code string) (*Code2AccessTokenResponse, error)
 	// 刷新token
 	RefreshAccessToken(ctx context.Context, refreshToken string) (*Code2AccessTokenResponse, error)
-
+	// 获取用户信息
 	GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error)
 }
 
@@ -65,8 +65,63 @@ func (k *ks) RefreshAccessToken(ctx context.Context, refreshToken string) (*Code
 	return token, nil
 }
 func (k *ks) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
-	// /openapi/user_info
-	return nil, nil
+	resp, err := k.client.Get(ctx, fmt.Sprintf("%s/openapi/user_info&app_id=%s&access_token", baseURL, accessToken))
+	if err != nil {
+		return nil, err
+	}
+	r := gjson.ParseBytes(resp)
+	if code := r.Get("result").Int(); code != 1 {
+		return nil, fmt.Errorf("%d|%s", code, r.Get("error_msg"))
+	}
+	type respData struct {
+		Result   int8     `json:"result"`
+		UserInfo UserInfo `json:"user_info"`
+	}
+	userInfo := new(respData)
+	if err = json.Unmarshal(resp, userInfo); err != nil {
+		return nil, err
+	}
+	return &userInfo.UserInfo, nil
+}
+
+// GetUserVideoInfo 作品列表
+// cursor 非必填,游标，用于分页，值为作品id。分页查询时，传上一页create_time最小的photo_id。第一页不传此参数
+// count 非必填,数量，默认为20
+func (k *ks) GetUserVideoInfo(ctx context.Context, accessToken, cursor string, count int) ([]VideoInfo, error) {
+	// user_video_info
+	resp, err := k.client.Get(ctx, fmt.Sprintf("%s/openapi/photo/list&app_id=%s&access_token", baseURL, accessToken))
+	if err != nil {
+		return nil, err
+	}
+	r := gjson.ParseBytes(resp)
+	if code := r.Get("result").Int(); code != 1 {
+		return nil, fmt.Errorf("%d|%s", code, r.Get("error_msg"))
+	}
+	type videos struct {
+		VideosList []VideoInfo `json:"videos_list"`
+	}
+	list := new(videos)
+	if err = json.Unmarshal(resp, &list); err != nil {
+		return nil, err
+	}
+	return list.VideosList, nil
+}
+
+// GetUserVideoCount 获取视频总数
+func (k *ks) GetUserVideoCount(ctx context.Context, accessToken string) (*VideoCount, error) {
+	resp, err := k.client.Get(ctx, fmt.Sprintf("%s/openapi/photo/count&app_id=%s&access_token", baseURL, accessToken))
+	if err != nil {
+		return nil, err
+	}
+	r := gjson.ParseBytes(resp)
+	if code := r.Get("result").Int(); code != 1 {
+		return nil, fmt.Errorf("%d|%s", code, r.Get("error_msg"))
+	}
+	count := new(VideoCount)
+	if err = json.Unmarshal(resp, &count); err != nil {
+		return nil, err
+	}
+	return count, nil
 }
 
 // New new

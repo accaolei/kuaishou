@@ -125,9 +125,10 @@ func (k *ks) GetUserVideoCount(ctx context.Context, accessToken string) (*VideoC
 }
 
 // New new
-func New(appID, appSecret string) Kuaishou {
+func New(appID, appSecret, callBackURL string) Kuaishou {
 	return &ks{
-		appID:     appID,
-		appSecret: appSecret,
+		appID:       appID,
+		appSecret:   appSecret,
+		callBackURL: callBackURL,
 	}
 }

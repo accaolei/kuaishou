@@ -12,7 +12,7 @@ type Code2AccessTokenResponse struct {
 
 // UserInfo 用户信息
 type UserInfo struct {
-	Name    int8   `json:"name"`     //用户昵称
+	Name    string `json:"name"`     //用户昵称
 	Sex     string `json:"sex"`      //性别，M:男性，F:女性，其他：未知
 	Fan     int    `json:"fan"`      // 粉丝数量
 	Follow  int    `json:"follow"`   //关注数

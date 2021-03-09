@@ -12,13 +12,16 @@ const baseURL = "https://open.kuaishou.com"
 
 // Kuaishou 快手开放平台的接口
 type Kuaishou interface {
-	AuthURL(state string) string //生成网站授权的url
+	AuthURL(scope, state string) string //生成网站授权的url
 	// 换取token
 	Code2AccessToken(ctx context.Context, code string) (*Code2AccessTokenResponse, error)
 	// 刷新token
 	RefreshAccessToken(ctx context.Context, refreshToken string) (*Code2AccessTokenResponse, error)
 	// 获取用户信息
 	GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error)
+
+	GetUserVideoInfo(ctx context.Context, accessToken, cursor string, count int) ([]VideoInfo, error)
+	GetUserVideoCount(ctx context.Context, accessToken string) (*VideoCount, error)
 }
 
 type ks struct {
@@ -28,13 +31,19 @@ type ks struct {
 	callBackURL string
 }
 
-func (k *ks) AuthURL(state string) string {
-	url := fmt.Sprintf("%s/oauth2/connect?app_id=%s&scope=user_info&response_type=code&redirect_uri=%s&state=%s", baseURL, k.appID, k.callBackURL, state)
+func (k *ks) AuthURL(scope, state string) string {
+	if scope == "" {
+		scope = "user_info,user_video_info,user_video_delete,user_video_publish"
+	}
+	url := fmt.Sprintf("%s/oauth2/connect?app_id=%s&scope=%s&response_type=code&redirect_uri=%s&state=%s", baseURL, k.appID, scope, k.callBackURL, state)
 	return url
 }
 
 func (k *ks) Code2AccessToken(ctx context.Context, code string) (*Code2AccessTokenResponse, error) {
-	resp, err := k.client.Get(ctx, fmt.Sprintf("%s/oauth2/access_token&app_id=%s&app_secret=%s&code=%s&grant_type=authorization_code", baseURL, k.appID, k.appSecret, code))
+	fmt.Println(baseURL)
+	url := fmt.Sprintf("%s/oauth2/access_token?app_id=%s&app_secret=%s&code=%s&grant_type=authorization_code", baseURL, k.appID, k.appSecret, code)
+	fmt.Println(url)
+	resp, err := k.client.Get(ctx, url)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +59,7 @@ func (k *ks) Code2AccessToken(ctx context.Context, code string) (*Code2AccessTok
 }
 
 func (k *ks) RefreshAccessToken(ctx context.Context, refreshToken string) (*Code2AccessTokenResponse, error) {
-	resp, err := k.client.Get(ctx, fmt.Sprintf("%s/oauth2/refresh_token&app_id=%s&app_secret=%s&refresh_token=%s&grant_type=authorization_code", baseURL, k.appID, k.appSecret, refreshToken))
+	resp, err := k.client.Get(ctx, fmt.Sprintf("%s/oauth2/refresh_token?app_id=%s&app_secret=%s&refresh_token=%s&grant_type=refresh_token", baseURL, k.appID, k.appSecret, refreshToken))
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +74,7 @@ func (k *ks) RefreshAccessToken(ctx context.Context, refreshToken string) (*Code
 	return token, nil
 }
 func (k *ks) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
-	resp, err := k.client.Get(ctx, fmt.Sprintf("%s/openapi/user_info&app_id=%s&access_token", baseURL, accessToken))
+	resp, err := k.client.Get(ctx, fmt.Sprintf("%s/openapi/user_info?app_id=%s&access_token=%s", baseURL, k.appID, accessToken))
 	if err != nil {
 		return nil, err
 	}
@@ -73,6 +82,7 @@ func (k *ks) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, er
 	if code := r.Get("result").Int(); code != 1 {
 		return nil, fmt.Errorf("%d|%s", code, r.Get("error_msg"))
 	}
+	fmt.Println(string(resp))
 	type respData struct {
 		Result   int8     `json:"result"`
 		UserInfo UserInfo `json:"user_info"`
@@ -89,7 +99,15 @@ func (k *ks) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, er
 // count 非必填,数量，默认为20
 func (k *ks) GetUserVideoInfo(ctx context.Context, accessToken, cursor string, count int) ([]VideoInfo, error) {
 	// user_video_info
-	resp, err := k.client.Get(ctx, fmt.Sprintf("%s/openapi/photo/list&app_id=%s&access_token", baseURL, accessToken))
+	url := fmt.Sprintf("%s/openapi/photo/list?app_id=%s&access_token=%s", baseURL, k.appID, accessToken)
+	if cursor != "" {
+		url = fmt.Sprintf("%s&cursor=%s", url, cursor)
+	}
+	if count > 0 {
+		url = fmt.Sprintf("%s&count=%d", url, count)
+	}
+	resp, err := k.client.Get(ctx, url)
+
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +127,7 @@ func (k *ks) GetUserVideoInfo(ctx context.Context, accessToken, cursor string, c
 
 // GetUserVideoCount 获取视频总数
 func (k *ks) GetUserVideoCount(ctx context.Context, accessToken string) (*VideoCount, error) {
-	resp, err := k.client.Get(ctx, fmt.Sprintf("%s/openapi/photo/count&app_id=%s&access_token", baseURL, accessToken))
+	resp, err := k.client.Get(ctx, fmt.Sprintf("%s/openapi/photo/count?app_id=%s&access_token=%s", baseURL, k.appID, accessToken))
 	if err != nil {
 		return nil, err
 	}
@@ -130,5 +148,6 @@ func New(appID, appSecret, callBackURL string) Kuaishou {
 		appID:       appID,
 		appSecret:   appSecret,
 		callBackURL: callBackURL,
+		client:      NewHTTPClient(),
 	}
 }

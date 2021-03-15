@@ -116,13 +116,13 @@ func (k *ks) GetUserVideoInfo(ctx context.Context, accessToken, cursor string, c
 		return nil, fmt.Errorf("%d|%s", code, r.Get("error_msg"))
 	}
 	type videos struct {
-		VideosList []VideoInfo `json:"videos_list"`
+		VideoList []VideoInfo `json:"video_list"`
 	}
 	list := new(videos)
 	if err = json.Unmarshal(resp, &list); err != nil {
 		return nil, err
 	}
-	return list.VideosList, nil
+	return list.VideoList, nil
 }
 
 // GetUserVideoCount 获取视频总数
